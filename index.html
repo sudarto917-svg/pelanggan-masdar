@@ -340,4 +340,410 @@
                     return;
                 }
                 
-                snapshot.forEac
+                snapshot.forEach(doc => {
+                    allProducts.push({ id: doc.id, ...doc.data() });
+                });
+
+                menuLoading.style.display = 'none';
+                renderAllMenu();
+                renderPopularMenu();
+
+            }, (error) => {
+                console.error("Gagal mengambil menu: ", error);
+                menuLoading.innerText = "Gagal memuat menu. Cek koneksi.";
+            });
+        }
+
+        function formatRupiah(number) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(number);
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(page => {
+                page.style.display = 'none';
+            });
+            document.getElementById(pageId).style.display = 'block';
+            currentPage = pageId;
+            window.scrollTo(0, 0);
+        }
+
+        // === FUNGSI RENDER (MENU) ===
+        
+        function renderAllMenu() {
+            const container = document.getElementById('all-menu-container');
+            container.innerHTML = '';
+            if(allProducts.length === 0) return;
+
+            allProducts.forEach(item => {
+                container.innerHTML += `
+                    <div class="bg-white rounded-2xl shadow-lg overflow-hidden transform transition-transform duration-300 hover:scale-[1.03] hover:shadow-xl">
+                        <img src="${item.image}" alt="${item.name}" class="w-full h-40 object-cover" onerror="this.src='https://placehold.co/400x300/F0F0F0/AAA?text=Gambar+Rusak'">
+                        <div class="p-5">
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">${item.emoji || ''} ${item.name}</h3>
+                            <p class="text-lg font-semibold text-emerald-600 mb-4">${formatRupiah(item.price)}</p>
+                            <button onclick="openAddonModal('${item.id}')" class="w-full bg-emerald-50 text-emerald-700 font-bold py-3 px-4 rounded-full hover:bg-emerald-100 transition-colors flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                Tambah
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderPopularMenu() {
+            const container = document.getElementById('popular-menu-container');
+            container.innerHTML = '';
+            const popularItems = allProducts.filter(item => item.isPopular);
+            if(popularItems.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">Belum ada menu populer.</p>';
+                return;
+            }
+            
+            popularItems.forEach(item => {
+                container.innerHTML += `
+                    <div class="flex-shrink-0 w-64 bg-white rounded-2xl shadow-md overflow-hidden snap-start">
+                        <img src="${item.image}" alt="${item.name}" class="w-full h-32 object-cover" onerror="this.src='https://placehold.co/400x300/F0F0F0/AAA?text=Gambar+Rusak'">
+                        <div class="p-4">
+                            <h4 class="font-bold text-gray-800 truncate">${item.emoji || ''} ${item.name}</h4>
+                            <p class="text-sm text-emerald-600 font-semibold">${formatRupiah(item.price)}</p>
+                            <button onclick="openAddonModal('${item.id}')" class="mt-2 w-full bg-emerald-500 text-white text-sm font-bold py-2 px-3 rounded-full hover:bg-emerald-600 transition-colors">
+                                Tambah
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // === FUNGSI MODAL ADD-ONS (UPSALE) ===
+
+        function openAddonModal(productId) {
+            currentItemToAdd = allProducts.find(p => p.id === productId);
+            if (!currentItemToAdd) return;
+
+            const modalContainer = document.getElementById('modal-content-container');
+            
+            let addonsHTML = '';
+            if (currentItemToAdd.addons && currentItemToAdd.addons.length > 0) {
+                addonsHTML = `
+                    <h4 class="text-lg font-semibold text-gray-800 mb-3">Mau tambah sesuatu?</h4>
+                    <div class="space-y-3">
+                        ${currentItemToAdd.addons.map((addon, index) => `
+                            <label for="addon-${index}" class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <div>
+                                    <span class="font-medium text-gray-800">${addon.name}</span>
+                                    <span class="block text-sm text-gray-500">+${formatRupiah(addon.price)}</span>
+                                </div>
+                                <input id="addon-${index}" name="addon" type="checkbox" value="${index}" data-name="${addon.name}" data-price="${addon.price}" class="h-5 w-5 text-emerald-500 border-gray-300 rounded focus:ring-emerald-400">
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                addonsHTML = '<p class="text-gray-600">Pilihan mantap! Langsung tambahin?</p>';
+            }
+            
+            modalContainer.innerHTML = `
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-2xl font-bold text-gray-900">${currentItemToAdd.emoji || ''} ${currentItemToAdd.name}</h3>
+                            <p class="text-xl font-semibold text-emerald-600">${formatRupiah(currentItemToAdd.price)}</p>
+                        </div>
+                        <button onclick="closeAddonModal()" class="p-2 -mt-2 -mr-2 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    ${addonsHTML}
+                </div>
+                <div class="bg-gray-50 p-6 flex justify-end">
+                    <button onclick="confirmAddToCart()" class="w-full sm:w-auto bg-emerald-500 text-white font-bold py-3 px-8 rounded-full hover:bg-emerald-600 transition-colors shadow-lg hover:shadow-emerald-300">
+                        Tambah ke Keranjang
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('addon-modal').style.display = 'flex';
+        }
+
+        function closeAddonModal() {
+            const modal = document.getElementById('addon-modal');
+            modal.classList.remove('fade-in');
+            modal.classList.add('fade-out');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.classList.remove('fade-out');
+                modal.classList.add('fade-in'); 
+                currentItemToAdd = null;
+            }, 300);
+        }
+
+        // === FUNGSI KERANJANG (CART) ===
+
+        function confirmAddToCart() {
+            if (!currentItemToAdd) return;
+
+            const selectedAddons = [];
+            document.querySelectorAll('#addon-modal input[name="addon"]:checked').forEach(checkbox => {
+                selectedAddons.push({
+                    name: checkbox.dataset.name,
+                    price: parseInt(checkbox.dataset.price)
+                });
+            });
+
+            const cartItem = {
+                cartItemId: Date.now(), 
+                productId: currentItemToAdd.id,
+                name: currentItemToAdd.name,
+                emoji: currentItemToAdd.emoji || '',
+                price: currentItemToAdd.price, 
+                qty: 1,
+                addons: selectedAddons
+            };
+
+            cart.push(cartItem);
+            
+            renderCart();
+            updateCartCountBadge();
+            closeAddonModal();
+            showNotification(`${cartItem.name} ditambah ke keranjang!`);
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items-container');
+            const emptyState = document.getElementById('cart-empty-state');
+            const summaryCard = document.getElementById('payment-summary-card');
+
+            if (cart.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                summaryCard.style.display = 'none'; 
+            } else {
+                emptyState.style.display = 'none';
+                summaryCard.style.display = 'block'; 
+                container.innerHTML = ''; 
+                
+                cart.forEach(item => {
+                    const itemTotalPrice = (item.price + item.addons.reduce((sum, addon) => sum + addon.price, 0)) * item.qty;
+                    
+                    container.innerHTML += `
+                        <div class="bg-white p-4 rounded-2xl shadow flex items-start space-x-4">
+                            <div class="text-3xl p-3 bg-gray-100 rounded-lg">${item.emoji}</div>
+                            <div class="flex-grow">
+                                <h4 class="font-bold text-gray-900">${item.name}</h4>
+                                ${item.addons.length > 0 ? `
+                                    <div class="text-sm text-gray-500 pl-2 border-l-2 border-gray-200 mt-1 ml-1">
+                                        ${item.addons.map(addon => `+ ${addon.name} (${formatRupiah(addon.price)})`).join('<br>')}
+                                    </div>
+                                ` : ''}
+                                <div class="flex items-center space-x-3 mt-2">
+                                    <button onclick="updateQuantity(${item.cartItemId}, -1)" class="w-7 h-7 bg-gray-200 text-gray-700 rounded-full font-bold flex items-center justify-center hover:bg-gray-300">-</button>
+                                    <span class="font-bold text-lg text-gray-900">${item.qty}</span>
+                                    <button onclick="updateQuantity(${item.cartItemId}, 1)" class="w-7 h-7 bg-gray-200 text-gray-700 rounded-full font-bold flex items-center justify-center hover:bg-gray-300">+</button>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-lg text-emerald-600">${formatRupiah(itemTotalPrice)}</p>
+                                <button onclick="removeFromCart(${item.cartItemId})" class="text-sm text-red-500 hover:text-red-700 font-medium mt-2">Hapus</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            // Tombol checkout hanya di-enable jika cart tidak kosong DAN db siap
+            checkoutButton.disabled = (cart.length === 0) || (auth.currentUser === null);
+            updatePaymentSummary();
+        }
+
+        function updateQuantity(cartItemId, change) {
+            const item = cart.find(i => i.cartItemId === cartItemId);
+            if (item) {
+                if (item.qty + change <= 0) {
+                    removeFromCart(cartItemId);
+                } else {
+                    item.qty += change;
+                    renderCart();
+                }
+            }
+        }
+
+        function removeFromCart(cartItemId) {
+            cart = cart.filter(i => i.cartItemId !== cartItemId);
+            renderCart();
+            updateCartCountBadge();
+            showNotification('Item dihapus dari keranjang.');
+        }
+
+        function updateCartCountBadge() {
+            const badge = document.getElementById('cart-count-badge');
+            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+            badge.textContent = totalItems;
+            badge.style.display = totalItems > 0 ? 'flex' : 'none';
+        }
+
+        // === FUNGSI PEMBAYARAN & SERVIS ===
+
+        function handleServiceChange(service) {
+            currentService = service;
+            const addressForm = document.getElementById('delivery-address-form');
+            const deliveryFeeRow = document.getElementById('summary-delivery-fee-row');
+            
+            if (service === 'Delivery') {
+                addressForm.style.display = 'block';
+                deliveryFeeRow.style.display = 'flex';
+            } else {
+                addressForm.style.display = 'none';
+                deliveryFeeRow.style.display = 'none';
+            }
+            updatePaymentSummary();
+        }
+
+        function updatePaymentSummary() {
+            if (cart.length === 0) return;
+
+            let subtotal = cart.reduce((sum, item) => {
+                const itemPrice = item.price + item.addons.reduce((s, a) => s + a.price, 0);
+                return sum + (itemPrice * item.qty);
+            }, 0);
+
+            let serviceFee = SERVICE_FEE; 
+            let deliveryFee = currentService === 'Delivery' ? DELIVERY_FEE : 0;
+            
+            if (currentService === 'Delivery' && subtotal >= FREE_SHIPPING_THRESHOLD) {
+                deliveryFee = 0; 
+            }
+            
+            let total = subtotal + serviceFee + deliveryFee;
+
+            document.getElementById('summary-subtotal').textContent = formatRupiah(subtotal);
+            document.getElementById('summary-service-fee').textContent = formatRupiah(serviceFee);
+            document.getElementById('summary-delivery-fee').textContent = deliveryFee === 0 ? 'Gratis' : formatRupiah(deliveryFee);
+            document.getElementById('summary-total').textContent = formatRupiah(total);
+            
+            const progressText = document.getElementById('free-shipping-text');
+            const progressBar = document.getElementById('free-shipping-progress');
+            if (currentService === 'Delivery') {
+                if (subtotal >= FREE_SHIPPING_THRESHOLD) {
+                    progressText.textContent = 'Hore! Kamu dapat Gratis Ongkir! 🎉';
+                    progressBar.style.width = '100%';
+                    progressBar.classList.add('bg-green-500'); 
+                } else {
+                    const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
+                    progressText.textContent = `Tambah ${formatRupiah(remaining)} lagi untuk Gratis Ongkir!`;
+                    progressBar.style.width = `${(subtotal / FREE_SHIPPING_THRESHOLD) * 100}%`;
+                    progressBar.classList.remove('bg-green-500');
+                    progressBar.classList.add('bg-emerald-500');
+                }
+            } else {
+                progressText.textContent = 'Pilih "Delivery" untuk cek promo Gratis Ongkir.';
+                progressBar.style.width = '0%';
+            }
+        }
+
+        // === Handle Checkout ke Firestore ===
+        async function handleCheckout() {
+            if (cart.length === 0 || !auth.currentUser) return;
+
+            const customerName = document.getElementById('customer-name').value.trim();
+            const customerPhone = document.getElementById('customer-phone').value.trim();
+            const address = document.getElementById('address').value.trim();
+            const paymentMethod = document.getElementById('payment-method').value;
+
+            // Validasi
+            if (customerName === '' || customerPhone === '') {
+                showNotification('Harap isi Nama dan No. Telepon!', 'error');
+                return;
+            }
+            if (currentService === 'Delivery' && address === '') {
+                showNotification('Harap isi alamat pengantaran!', 'error');
+                return;
+            }
+            if (paymentMethod === '') {
+                showNotification('Harap pilih metode pembayaran!', 'error');
+                return;
+            }
+
+            let subtotal = cart.reduce((sum, item) => {
+                const itemPrice = item.price + item.addons.reduce((s, a) => s + a.price, 0);
+                return sum + (itemPrice * item.qty);
+            }, 0);
+            let serviceFee = SERVICE_FEE;
+            let deliveryFee = (currentService === 'Delivery' && subtotal < FREE_SHIPPING_THRESHOLD) ? DELIVERY_FEE : 0;
+            let total = subtotal + serviceFee + deliveryFee;
+
+            const orderObject = {
+                customerName,
+                customerPhone,
+                service: currentService,
+                address: currentService === 'Delivery' ? address : '',
+                paymentMethod,
+                items: cart, 
+                subtotal,
+                serviceFee,
+                deliveryFee,
+                total,
+                status: 'Baru', 
+                createdAt: serverTimestamp() 
+            };
+
+            checkoutButton.disabled = true;
+            checkoutButton.innerText = 'Mengirim Pesanan...';
+
+            try {
+                const docRef = await addDoc(ordersCollection, orderObject);
+                console.log("Pesanan berhasil dikirim dengan ID: ", docRef.id);
+
+                showNotification('Pesanan berhasil dibuat! Terima kasih. 🙏', 'success');
+                
+                cart = [];
+                renderCart();
+                updateCartCountBadge();
+                document.getElementById('customer-name').value = '';
+                document.getElementById('customer-phone').value = '';
+                document.getElementById('address').value = '';
+                
+                setTimeout(() => {
+                    showPage('menu-page');
+                }, 2000);
+
+            } catch (e) {
+                console.error("Gagal mengirim pesanan: ", e);
+                showNotification('Gagal mengirim pesanan. Coba lagi.', 'error');
+            } finally {
+                checkoutButton.disabled = false;
+                checkoutButton.innerText = 'Kirim Pesanan';
+                // Panggil renderCart lagi untuk re-evaluasi tombol disabled
+                renderCart();
+            }
+        }
+
+        // === FUNGSI NOTIFIKASI KUSTOM ===
+        
+        let notificationTimeout;
+        function showNotification(message, type = 'success') {
+            const notif = document.getElementById('custom-notification');
+            const notifMessage = document.getElementById('notification-message');
+
+            if (notificationTimeout) clearTimeout(notificationTimeout);
+
+            notifMessage.textContent = message;
+            notif.classList.remove('bg-green-500', 'bg-red-500');
+            notif.classList.add(type === 'error' ? 'bg-red-500' : 'bg-green-500');
+            notif.style.display = 'block';
+
+            notificationTimeout = setTimeout(() => {
+                notif.style.display = 'none';
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
+
+
