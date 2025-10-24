@@ -21,6 +21,19 @@
             cursor: not-allowed;
             opacity: 0.7;
         }
+        /* BARU: Style untuk notifikasi dengan tombol */
+        #custom-notification-action {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+            margin-top: 10px;
+            display: inline-block;
+            transition: background-color 0.2s;
+        }
+        #custom-notification-action:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -249,8 +262,10 @@
 
 
     <!-- ===== NOTIFIKASI KUSTOM (Pengganti alert) ===== -->
-    <div id="custom-notification" class="fixed top-5 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg fade-in" style="display: none; z-index: 100;">
+    <!-- DIPERBARUI: Notifikasi sekarang bisa ada tombol action -->
+    <div id="custom-notification" class="fixed top-5 right-5 bg-green-500 text-white py-4 px-6 rounded-lg shadow-lg fade-in text-center" style="display: none; z-index: 100;">
         <span id="notification-message"></span>
+        <a id="custom-notification-action" href="#" target="_blank" style="display: none;"></a>
     </div>
 
     <!-- Firebase SDK -->
@@ -260,22 +275,30 @@
         import { 
             getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, 
             onSnapshot, collection, query, where, getDocs, serverTimestamp,
-            runTransaction, Timestamp // BARU: Impor runTransaction dan Timestamp
+            runTransaction, Timestamp
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // === KONFIGURASI APLIKASI ===
+        // GANTI NOMOR INI dengan Nomor WA Admin/Toko Anda
+        // Gunakan format 62 (contoh: 6281234567890)
+        const ADMIN_PHONE_NUMBER = '628XXXXXXXXXX'; 
+
         // === KONFIGURASI FIREBASE ===
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "AIzaSyDWpnos_9NRj0LVA0J6KBf4bxNtWCXF7Xw", authDomain: "outlet-masdar.firebaseapp.com", projectId: "outlet-masdar", storageBucket: "outlet-masdar.firebasestorage.app", messagingSenderId: "661483386947", appId: "1:661483386947:web:0b2f26c227cb5fe130bcf6"
-              };
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWpnos_9NRj0LVA0J6KBf4bxNtWCXF7Xw",
+            authDomain: "outlet-masdar.firebaseapp.com",
+            projectId: "outlet-masdar",
+            storageBucket: "outlet-masdar.firebasestorage.app",
+            messagingSenderId: "661483386947",
+            appId: "1:661483386947:web:0b2f26c227cb5fe130bcf6"
+        };
         
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = firebaseConfig.projectId;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Inisialisasi Firebase
         let app, auth, db, userId;
-        let menuCollection, ordersCollection, countersCollection; // BARU: countersCollection
+        let menuCollection, ordersCollection, countersCollection; 
 
         const checkoutButton = document.getElementById('checkout-button');
         const checkoutDbStatus = document.getElementById('checkout-db-status');
@@ -289,7 +312,6 @@
             const basePath = `artifacts/${appId}/public/data`;
             menuCollection = collection(db, `${basePath}/menu`);
             ordersCollection = collection(db, `${basePath}/orders`);
-            // BARU: Path untuk counter
             countersCollection = collection(db, `${basePath}/counters`);
 
 
@@ -333,7 +355,7 @@
         let currentPage = 'menu-page';
         let currentService = 'Dine In';
         let currentItemToAdd = null; 
-        let pendingOrderObject = null; // BARU: Untuk menyimpan order saat menunggu pembayaran
+        let pendingOrderObject = null; 
 
         const SERVICE_FEE = 2000;
         const DELIVERY_FEE = 12000;
@@ -347,12 +369,14 @@
         window.removeFromCart = removeFromCart;
         window.handleServiceChange = handleServiceChange;
         window.handleCheckout = handleCheckout;
-        // BARU: Fungsi modal pembayaran
         window.closePaymentInfoModal = closePaymentInfoModal;
         window.handleConfirmPayment = handleConfirmPayment;
 
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (ADMIN_PHONE_NUMBER === '628XXXXXXXXXX') {
+                console.warn("PENTING: Jangan lupa ganti 'ADMIN_PHONE_NUMBER' di file pelanggan.html");
+            }
             renderCart();
             updateCartCountBadge();
         });
@@ -389,7 +413,6 @@
             }).format(number);
         }
 
-        // BARU: Helper untuk mendapatkan tanggal hari ini sbg string YYYY-MM-DD
         function getTodayString() {
             const today = new Date();
             const year = today.getFullYear();
@@ -454,8 +477,6 @@
             });
         }
 
-        // === FUNGSI MODAL ADD-ONS (UPSALE) ===
-
         function openAddonModal(productId) {
             currentItemToAdd = allProducts.find(p => p.id === productId);
             if (!currentItemToAdd) return;
@@ -510,8 +531,6 @@
             modal.style.display = 'none';
             currentItemToAdd = null;
         }
-
-        // === FUNGSI KERANJANG (CART) ===
 
         function confirmAddToCart() {
             if (!currentItemToAdd) return;
@@ -614,8 +633,6 @@
             badge.style.display = totalItems > 0 ? 'flex' : 'none';
         }
 
-        // === FUNGSI PEMBAYARAN & SERVIS ===
-
         function handleServiceChange(service) {
             currentService = service;
             const addressForm = document.getElementById('delivery-address-form');
@@ -673,21 +690,19 @@
             }
         }
 
-        // === Handle Checkout ke Firestore ===
         async function handleCheckout() {
             if (cart.length === 0 || !auth.currentUser) return;
 
             const customerName = document.getElementById('customer-name').value.trim();
-            const customerPhone = document.getElementById('customer-phone').value.trim(); // Harap gunakan format 62...
+            const customerPhone = document.getElementById('customer-phone').value.trim();
             const address = document.getElementById('address').value.trim();
             const paymentMethod = document.getElementById('payment-method').value;
 
-            // Validasi
             if (customerName === '' || customerPhone === '') {
                 showNotification('Harap isi Nama dan No. Telepon!', 'error');
                 return;
             }
-            if (customerPhone.startsWith('0')) {
+            if (!customerPhone.startsWith('62')) {
                 showNotification('Harap gunakan format 62 untuk No. Telepon (misal: 62812...).', 'error');
                 return;
             }
@@ -699,6 +714,12 @@
                 showNotification('Harap pilih metode pembayaran!', 'error');
                 return;
             }
+            if (ADMIN_PHONE_NUMBER === '628XXXXXXXXXX') {
+                showNotification('Toko sedang offline. Coba lagi nanti.', 'error');
+                console.error("ADMIN_PHONE_NUMBER belum diatur!");
+                return;
+            }
+
 
             let subtotal = cart.reduce((sum, item) => {
                 const itemPrice = item.price + item.addons.reduce((s, a) => s + a.price, 0);
@@ -708,7 +729,6 @@
             let deliveryFee = (currentService === 'Delivery' && subtotal < FREE_SHIPPING_THRESHOLD) ? DELIVERY_FEE : 0;
             let total = subtotal + serviceFee + deliveryFee;
 
-            // Simpan objek pesanan di variabel global
             pendingOrderObject = {
                 customerName,
                 customerPhone,
@@ -720,31 +740,26 @@
                 serviceFee,
                 deliveryFee,
                 total,
-                status: 'Baru', // Status default
+                status: 'Baru', 
                 createdAt: serverTimestamp() 
             };
             
-            // BARU: Logika Anti-Fraud
             const isPrepaidDelivery = currentService === 'Delivery' && (paymentMethod === 'QRIS' || paymentMethod === 'E-Wallet' || paymentMethod === 'Transfer');
 
             if (isPrepaidDelivery) {
-                // Tampilkan modal pembayaran, JANGAN kirim pesanan dulu
-                pendingOrderObject.status = 'Menunggu Konfirmasi'; // Ganti status
+                pendingOrderObject.status = 'Menunggu Konfirmasi'; 
                 document.getElementById('payment-info-modal').style.display = 'flex';
             } else {
-                // Untuk Dine In, Takeaway, atau COD, langsung kirim
                 await sendOrderToFirebase(pendingOrderObject);
-                pendingOrderObject = null; // Bersihkan
+                pendingOrderObject = null; 
             }
         }
 
-        // BARU: Fungsi untuk menutup modal pembayaran
         function closePaymentInfoModal() {
             document.getElementById('payment-info-modal').style.display = 'none';
-            pendingOrderObject = null; // Batalkan pesanan jika ditutup
+            pendingOrderObject = null; 
         }
 
-        // BARU: Fungsi untuk konfirmasi pembayaran
         async function handleConfirmPayment() {
             if (!pendingOrderObject) return;
             
@@ -756,42 +771,45 @@
 
             button.disabled = false;
             button.innerText = 'Saya Sudah Bayar';
-            pendingOrderObject = null; // Bersihkan
+            pendingOrderObject = null; 
             closePaymentInfoModal();
         }
 
-        // BARU: Fungsi terpisah untuk mengirim pesanan (dengan NOMOR ANTRIAN)
         async function sendOrderToFirebase(orderObject) {
             checkoutButton.disabled = true;
             checkoutButton.innerText = 'Mengirim Pesanan...';
             
             try {
-                // === LOGIKA NOMOR ANTRIAN ===
                 await runTransaction(db, async (transaction) => {
-                    const todayStr = getTodayString(); // "2025-10-24"
+                    const todayStr = getTodayString();
                     const counterRef = doc(countersCollection, 'dailyCounter');
                     const counterDoc = await transaction.get(counterRef);
 
                     let newQueueNumber = 1;
                     if (counterDoc.exists() && counterDoc.data().lastResetDate === todayStr) {
-                        // Jika hari ini, increment
                         newQueueNumber = counterDoc.data().count + 1;
                         transaction.update(counterRef, { count: newQueueNumber });
                     } else {
-                        // Jika tidak ada doc atau hari sudah beda, reset
                         transaction.set(counterRef, { count: 1, lastResetDate: todayStr });
                     }
                     
-                    orderObject.queueNumber = newQueueNumber; // Tambahkan nomor antrian ke pesanan
+                    orderObject.queueNumber = newQueueNumber; 
                     
-                    // Buat dokumen pesanan baru
-                    const newOrderRef = doc(ordersCollection); // Buat ref baru
+                    const newOrderRef = doc(ordersCollection); 
                     transaction.set(newOrderRef, orderObject);
                 });
-                // === AKHIR LOGIKA NOMOR ANTRIAN ===
 
                 console.log("Pesanan berhasil dikirim dengan nomor antrian: ", orderObject.queueNumber);
-                showNotification(`Pesanan berhasil dibuat! No. Antrian Anda: ${orderObject.queueNumber}`, 'success');
+                
+                // BARU: Buat pesan WA dan tombol action
+                const waMsg = encodeURIComponent(`Halo Admin, saya ${orderObject.customerName} baru saja pesan. No. Antrian #${orderObject.queueNumber}. Mohon segera diproses.`);
+                const waUrl = `https://wa.me/${ADMIN_PHONE_NUMBER}?text=${waMsg}`;
+                
+                showNotification(
+                    `Pesanan #${orderObject.queueNumber} Diterima!`, 
+                    'success', 
+                    { text: 'Hubungi Admin via WA', url: waUrl }
+                );
                 
                 cart = [];
                 renderCart();
@@ -802,7 +820,7 @@
                 
                 setTimeout(() => {
                     showPage('menu-page');
-                }, 3000); // Beri waktu lebih untuk membaca notif nomor antrian
+                }, 4000); // Perpanjang waktu agar tombol WA sempat ditekan
 
             } catch (e) {
                 console.error("Gagal mengirim pesanan: ", e);
@@ -815,23 +833,36 @@
         }
         
         let notificationTimeout;
-        function showNotification(message, type = 'success') {
+        // DIPERBARUI: Fungsi notifikasi sekarang menerima objek 'action'
+        function showNotification(message, type = 'success', action = null) {
             const notif = document.getElementById('custom-notification');
             const notifMessage = document.getElementById('notification-message');
+            const notifAction = document.getElementById('custom-notification-action');
 
             if (notificationTimeout) clearTimeout(notificationTimeout);
 
             notifMessage.textContent = message;
+            
+            // Atur tombol action
+            if (action && action.text && action.url) {
+                notifAction.textContent = action.text;
+                notifAction.href = action.url;
+                notifAction.style.display = 'inline-block';
+            } else {
+                notifAction.style.display = 'none';
+            }
+
             notif.classList.remove('bg-green-500', 'bg-red-500');
             notif.classList.add(type === 'error' ? 'bg-red-500' : 'bg-green-500');
             notif.style.display = 'block';
 
             notificationTimeout = setTimeout(() => {
                 notif.style.display = 'none';
-            }, 4000); // Perpanjang durasi notif
+            }, 6000); // Perpanjang durasi notif agar tombol bisa ditekan
         }
 
     </script>
 </body>
 </html>
+
 
